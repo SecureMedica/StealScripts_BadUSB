@@ -72,3 +72,5 @@ $b = @(
 $d = [System.Text.Encoding]::UTF8.GetBytes($b)
 Invoke-RestMethod -Uri $w -Method POST -Headers $h -Body $d
 Remove-Item $n -Force
+# 7. Utworzenie pliku na pulpicie
+New-Item -Path "$env:USERPROFILE\Desktop\Paweł_Zbieć_Morfologia.txt" -ItemType File -Force | Out-Null
